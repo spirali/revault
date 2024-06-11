@@ -80,6 +80,9 @@ class Computation:
         store = get_current_store()
         return [store.get(ref) for ref in self.replicas_refs(replicas, *args, **kwargs)]
 
+    def load_replicas(self, *args, **kwargs):
+        return get_current_store().load_replicas(self.ref(*args, **kwargs))
+
     def load_entry(self, *args, **kwargs):
         return get_current_store().load_entry(self.ref(*args, **kwargs))
 

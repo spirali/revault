@@ -14,6 +14,7 @@ def test_runtime_insert_new_replica(store):
     with store:
         assert my_fn(x=20) == "a"
         assert my_fn(x=20, replica=1) == "b"
+        assert my_fn.load_replicas(x=20) == ["a", "b"]
 
 
 def test_remove(store):

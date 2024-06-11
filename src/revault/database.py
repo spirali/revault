@@ -31,6 +31,8 @@ class Database:
             sa.Column("replica", sa.Integer),
             sa.Column("config", sa.PickleType),
             sa.Column("result", sa.PickleType),
+            sa.Column("config_json", sa.JSON),
+            sa.Column("result_json", sa.JSON),
             sa.Column(
                 "start_date",
                 sa.DateTime(timezone=True),
@@ -47,6 +49,20 @@ class Database:
 
         self.metadata = metadata
         self.engine = engine
+
+    def load_replica_entries(self, key: Key) -> list[Entry]:
+        c = self.entries.c
+        with self.engine.connect() as conn:
+            select = (
+                sa.select(c.id, c.result)
+                .where(c.name == key.name)
+                .where(c.version == key.version)
+                .where(c.config_key == key.config_key)
+                .where(c.finish_date != None)
+            )
+            return [
+                Entry(entry_id=r[0], key=key, result=r[1]) for r in conn.execute(select)
+            ]
 
     def load_entry(self, key: Key) -> Entry | None:
         c = self.entries.c
@@ -88,7 +104,7 @@ class Database:
                 )
                 for name, version, config, config_key, replica in conn.execute(
                     select
-                ).all()
+                )
             ]
 
     def load_all_keys(self) -> list[Key]:
@@ -103,13 +119,24 @@ class Database:
     def get_or_announce_entry(self, key: Key) -> Tuple[AnnounceResult, EntryId, Any]:
         c = self.entries.c
         with self.engine.connect() as conn:
+            select = (
+                sa.select(c.id, c.result, c.finish_date)
+                .where(c.name == key.name)
+                .where(c.version == key.version)
+                .where(c.config_key == key.config_key)
+                .where(c.replica == key.replica)
+            )
+            r = conn.execute(select).one_or_none()
+            if r is not None:
+                if r[2] is None:
+                    return AnnounceResult.COMPUTING_ELSEWHERE, r[0], None
+                return AnnounceResult.FINISHED, r[0], r[1]
             try:
                 stmt = (
                     sa.insert(self.entries)
                     .values(
                         name=key.name,
                         version=key.version,
-                        config=key.config,
                         config_key=key.config_key,
                         replica=key.replica,
                     )
@@ -132,12 +159,19 @@ class Database:
                 else:
                     return AnnounceResult.FINISHED, r[0], r[1]
 
-    def finish_entry(self, entry_id: EntryId, result: Any, run_info: dict):
+    def finish_entry(
+        self, entry_id: EntryId, result: Any, run_info: dict, config: dict
+    ):
         with self.engine.connect() as conn:
             stmt = (
                 sa.update(self.entries)
                 .where(self.entries.c.id == entry_id)
-                .values(result=result, run_info=run_info, finish_date=datetime.now())
+                .values(
+                    result=result,
+                    run_info=run_info,
+                    config=config,
+                    finish_date=datetime.now(),
+                )
             )
             conn.execute(stmt)
             conn.commit()

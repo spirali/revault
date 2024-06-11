@@ -58,7 +58,7 @@ class Store:
     """
     Core class of revault.
 
-    It manages database with results and starts computations
+    It manages database with results
 
     For SQLite:
 
@@ -108,7 +108,7 @@ class Store:
                 del self.waiting_for_results[ref.key]
                 waiting.set_exception(e)
             raise e
-        self.db.finish_entry(entry_id, result, {})
+        self.db.finish_entry(entry_id, result, {}, ref.key.config)
         with self.lock:
             del self.waiting_for_results[ref.key]
             waiting.set_result(result, entry_id)
@@ -133,6 +133,13 @@ class Store:
         if entry is None:
             raise Exception(f"Key {to_key(key)} not found.")
         return entry
+
+    def load_replica_entries(self, key: ToKey) -> list:
+        key = to_key(key)
+        return self.db.load_replica_entries(key)
+
+    def load_replicas(self, key: ToKey) -> list:
+        return [entry.result for entry in self.load_replica_entries(key)]
 
     def load_entry_or_none(self, key: ToKey):
         return self.db.load_entry(to_key(key))

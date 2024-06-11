@@ -21,7 +21,7 @@ def test_db_announce():
     r2 = db.get_or_announce_entry(key)
     assert r2 == (AnnounceResult.COMPUTING_ELSEWHERE, r[1], None)
 
-    db.finish_entry(r[1], "Hello", {})
+    db.finish_entry(r[1], "Hello", {}, key.config)
 
     r2 = db.get_or_announce_entry(key)
     assert r2 == (AnnounceResult.FINISHED, r[1], "Hello")
