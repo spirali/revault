@@ -1,3 +1,4 @@
+import threading
 from contextvars import ContextVar
 from typing import Union, Any
 from threading import Lock
@@ -24,6 +25,35 @@ _CURRENT_RUNNING_TASK: ContextVar[Union[None, RunningTask]] = ContextVar(
 )
 
 
+class WaitingForResult:
+    def __init__(self):
+        self.condition = None
+        self.result = None
+        self.exception = None
+        self.entry_id = None
+
+    def wait(self, lock):
+        if self.condition is None:
+            self.condition = threading.Condition(lock)
+        self.condition.wait()
+        if self.exception:
+            raise self.exception
+        return self.result, self.entry_id
+
+    def set_result(self, result, entry_id):
+        if self.condition is None:
+            return
+        self.result = result
+        self.entry_id = entry_id
+        self.condition.notify_all()
+
+    def set_exception(self, exception):
+        if self.condition is None:
+            return
+        self.exception = exception
+        self.condition.notify_all()
+
+
 class Store:
     """
     Core class of revault.
@@ -43,31 +73,46 @@ class Store:
         self.db = Database(db_path)
         self.db.init()
         self._token = None
+
         self.lock = Lock()
+        self.waiting_for_results: dict[Key, WaitingForResult | None] = {}
 
     def get(self, ref: Ref) -> Any:
         return self.get_entry(ref).result
 
     def get_entry(self, ref: Ref):
         if not isinstance(ref, Ref):
-            raise Exception(f"Expected CompRef, got {ref.__class__.__name__}")
+            raise Exception(f"Expected Ref, got {ref.__class__.__name__}")
 
-        status, entry_id, result = self.db.get_or_announce_entry(ref.key)
-        if status == AnnounceResult.FINISHED:
-            return Entry(entry_id, ref, result)
-        elif status == AnnounceResult.COMPUTE_HERE:
-            try:
-                running_task = RunningTask()
-                token = _CURRENT_RUNNING_TASK.set(running_task)
-                result = ref.computation.fn(**ref.args)
-                _CURRENT_RUNNING_TASK.reset(token)
-            except BaseException as e:
-                self.db.cancel_entry(entry_id)
-                raise e
-            self.db.finish_entry(entry_id, result, {})
-            return Entry(entry_id, ref, result)
-        elif status == AnnounceResult.COMPUTING_ELSEWHERE:
-            raise Exception(f"Computation {ref} is computed in another process")
+        with self.lock:
+            if ref.key in self.waiting_for_results:
+                waiting = self.waiting_for_results[ref.key]
+                result, entry_id = waiting.wait(self.lock)
+                return Entry(entry_id, ref, result)
+            status, entry_id, result = self.db.get_or_announce_entry(ref.key)
+            if status == AnnounceResult.FINISHED:
+                return Entry(entry_id, ref, result)
+            elif status == AnnounceResult.COMPUTING_ELSEWHERE:
+                raise Exception(f"Computation {ref} is computed in another process")
+            assert status == AnnounceResult.COMPUTE_HERE
+            waiting = WaitingForResult()
+            self.waiting_for_results[ref.key] = waiting
+        try:
+            running_task = RunningTask()
+            token = _CURRENT_RUNNING_TASK.set(running_task)
+            result = ref.computation.fn(**ref.args)
+            _CURRENT_RUNNING_TASK.reset(token)
+        except BaseException as e:
+            self.db.cancel_entry(entry_id)
+            with self.lock:
+                del self.waiting_for_results[ref.key]
+                waiting.set_exception(e)
+            raise e
+        self.db.finish_entry(entry_id, result, {})
+        with self.lock:
+            del self.waiting_for_results[ref.key]
+            waiting.set_result(result, entry_id)
+        return Entry(entry_id, ref, result)
 
     def remove(self, key: ToKey):
         key = to_key(key)
@@ -109,15 +154,6 @@ class Store:
     def cancel_running(self):
         self.db.cancel_running()
 
-    # def get_entries(self, obj):
-    #     refs = collect_refs(obj)
-    #     return replace_refs(obj, self._process_refs(refs))
-
-    # def get_results(self, obj):
-    #     refs = collect_refs(obj)
-    #     results = {ref: entry.result for ref, entry in self._process_refs(refs).items()}
-    #     return replace_refs(obj, results)
-
     def __enter__(self):
         assert self._token is None
         self._token = _GLOBAL_STORE.set(self)
@@ -134,12 +170,4 @@ def get_current_store() -> Store:
     return runtime
 
 
-# def get_results(obj):
-#     return get_current_store().get_results(obj)
-
-
-# def read_results(obj):
-#     return get_current_store().read_results(obj)
-
-
-from .comp import Computation
+from .comp import Computation  # noqa: E402

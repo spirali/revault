@@ -1,5 +1,4 @@
 from hashlib import sha224
-from typing import Any, Callable
 
 
 class Key:
@@ -48,35 +47,6 @@ class Key:
 
     def __hash__(self):
         return hash(self.tuple_key)
-
-
-# def collect_refs(obj) -> list[Ref]:
-#     result = []
-
-#     def _helper(obj2):
-#         if isinstance(obj2, Ref):
-#             result.append(obj2)
-#         if isinstance(obj2, list) or isinstance(obj2, tuple):
-#             for item in obj2:
-#                 _helper(item)
-#         if isinstance(obj2, dict):
-#             for item in obj2.values():
-#                 _helper(item)
-
-#     _helper(obj)
-#     return result
-
-
-# def replace_refs(obj, refs: dict[Ref, Any]):
-#     if isinstance(obj, Ref):
-#         return refs[obj]
-#     if isinstance(obj, list):
-#         return [replace_refs(item, refs) for item in obj]
-#     if isinstance(obj, tuple):
-#         return tuple(replace_refs(item, refs) for item in obj)
-#     if isinstance(obj, dict):
-#         return {key: replace_refs(value, refs) for key, value in obj.items()}
-#     return obj
 
 
 def _is_basic_type(obj) -> bool:

@@ -9,5 +9,6 @@ ROOT_DIR = os.path.dirname(PYTEST_DIR)
 
 
 @pytest.fixture()
-def store():
-    return Store("sqlite:///:memory:")
+def store(tmpdir):
+    path = str(tmpdir.join("test.db"))
+    return Store("sqlite:///" + path)

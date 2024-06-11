@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterable, Tuple
+from typing import Any, Callable, Tuple
 
 import sqlalchemy as sa
 from sqlalchemy.sql.expression import func
@@ -43,35 +43,7 @@ class Database:
             ),
             sa.Column("run_info", sa.JSON),
             sa.UniqueConstraint("name", "version", "config_key", "replica"),
-            # sa.Column("computation_time", sa.Integer(), nullable=True),
-            # sa.Index("key_idx", "key"),
         )
-
-        # self.deps = sa.Table(
-        #     "deps",
-        #     metadata,
-        #     sa.Column(
-        #         "source_id",
-        #         sa.Integer(),
-        #         sa.ForeignKey("entries.id", ondelete="cascade"),
-        #     ),
-        #     sa.Column(
-        #         "target_id",
-        #         sa.Integer(),
-        #         sa.ForeignKey("entries.id", ondelete="cascade"),
-        #     ),
-        #     sa.UniqueConstraint("source_id", "target_id"),
-        # )
-
-        # self.blobs = sa.Table(
-        #     "blobs",
-        #     metadata,
-        #     sa.Column("entry_id", sa.ForeignKey("entries.id", ondelete="cascade"), primary_key=True),
-        #     sa.Column("name", sa.String, nullable=False, primary_key=True),
-        #     sa.Column("data", sa.LargeBinary, nullable=False),
-        #     sa.Column("mime", sa.String(255), nullable=False),
-        #     sa.Column("repr", sa.String(85), nullable=True),
-        # )
 
         self.metadata = metadata
         self.engine = engine
@@ -85,6 +57,7 @@ class Database:
                 .where(c.version == key.version)
                 .where(c.config_key == key.config_key)
                 .where(c.replica == key.replica)
+                .where(c.finish_date != None)
             )
             r = conn.execute(select).one_or_none()
             if r is not None:
@@ -126,41 +99,6 @@ class Database:
         return self._load_keys(
             lambda s: s.where(c.name == name).where(c.version == version)
         )
-
-    # def load_all_refs(self):
-    #     c = self.entries.c
-    #     with self.engine.connect() as conn:
-    #         select = sa.select(
-    #             c.id, c.name, c.version, c.config, c.config_key, c.replica
-    #         )
-    #         return [
-    #             Key(
-    #                 name,
-    #                 version,
-    #                 config,
-    #                 replica,
-    #                 config_key=config_key,
-    #             )
-    #             for entry_id, name, version, config, config_key, replica in conn.execute(
-    #                 select
-    #             ).all()
-    #         ]
-
-    # def load_result(self, key: Key) -> Tuple[bool, Any]:
-    #     c = self.entries.c
-    #     with self.engine.connect() as conn:
-    #         select = (
-    #             sa.select(c.result)
-    #             .where(c.name == key.name)
-    #             .where(c.version == key.version)
-    #             .where(c.config_key == key.config_key)
-    #             .where(c.replica == key.replica)
-    #         )
-    #         r = conn.execute(select).one_or_none()
-    #         if r is not None:
-    #             return True, r[0]
-    #         else:
-    #             return False, None
 
     def get_or_announce_entry(self, key: Key) -> Tuple[AnnounceResult, EntryId, Any]:
         c = self.entries.c

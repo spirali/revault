@@ -1,4 +1,4 @@
-from revault import computation, Store
+from revault import computation
 import pytest
 import inspect
 import time
@@ -157,11 +157,7 @@ def test_compute_inspect():
     assert inspect.signature(my_fn).parameters["y"].default == 10
 
 
-def test_compute_in_threads(store):
-
-    # store = Store("sqlite:////tmp/my.db")
-    store = Store("sqlite:///:memory:")
-
+def test_compute_in_threads_ok(store):
     @computation
     def my_fn(x):
         time.sleep(1)
@@ -171,5 +167,30 @@ def test_compute_in_threads(store):
         with store:
             a = executor.submit(store.get, my_fn.ref(10))
             b = executor.submit(store.get, my_fn.ref(10))
+            time.sleep(0.3)
+            with pytest.raises(Exception, match="not found."):
+                store.load_entry(my_fn.ref(10))
             assert b.result() == 100
             assert a.result() == 100
+            assert store.load_entry(my_fn.ref(10)).result == 100
+
+
+def test_compute_in_threads_fail(store):
+    class TestException(Exception):
+        pass
+
+    @computation
+    def my_fn(x):
+        time.sleep(0.3)
+        raise TestException("TEST")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        with store:
+            a = executor.submit(store.get, my_fn.ref(10))
+            b = executor.submit(store.get, my_fn.ref(10))
+            time.sleep(0.3)
+            with pytest.raises(TestException):
+                b.result()
+            with pytest.raises(TestException):
+                a.result()
+            assert store.load_entry_or_none(my_fn.ref(10)) is None

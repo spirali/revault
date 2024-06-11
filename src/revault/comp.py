@@ -112,4 +112,4 @@ def computation(fn=None, *, name: str = None, version: int = 0):
         return _helper
 
 
-from .store import get_current_store  # noqa
+from .store import get_current_store  # noqa: E402

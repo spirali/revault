@@ -15,3 +15,6 @@ pytest = "^8.2.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff.lint]
+ignore = ["E711"]  # Ignore warnings for x == None as it used in sqlalchemy and cannot be replaced by x is None
