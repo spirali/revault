@@ -1,3 +1,7 @@
+<p align="center">
+    <img width="160" src="docs/logo.png">
+</p>
+
 # Result Vault
 
 Python module for persisting results of computation in a database.
