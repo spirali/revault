@@ -2,6 +2,7 @@ from typing import Any, Callable, Tuple
 
 import sqlalchemy as sa
 from sqlalchemy.sql.expression import func
+from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
 
 from .key import Key
@@ -13,8 +14,12 @@ from .entry import AnnounceResult, EntryId, Entry
 #     cursor.execute("PRAGMA foreign_keys=ON")
 #     cursor.close()
 
+# Use JSON with SQLite and JSONB with PostgreSQL.
+JsonVariant = sa.JSON().with_variant(JSONB(), "postgresql")
+
 
 class Database:
+
     def __init__(self, url):
         engine = sa.create_engine(url)
         # if "sqlite" in engine.dialect.name:
@@ -31,8 +36,8 @@ class Database:
             sa.Column("replica", sa.Integer),
             sa.Column("config", sa.PickleType),
             sa.Column("result", sa.PickleType),
-            sa.Column("config_json", sa.JSON),
-            sa.Column("result_json", sa.JSON),
+            sa.Column("config_json", JsonVariant, index=True),
+            sa.Column("result_json", JsonVariant, index=True),
             sa.Column(
                 "start_date",
                 sa.DateTime(timezone=True),
@@ -197,7 +202,7 @@ class Database:
 
     def insert_new_replica(
         self, key: Key, result: Any
-    ) -> Tuple[AnnounceResult, EntryId, Any]:
+    ) -> int:
         c = self.entries.c
         with self.engine.connect() as conn:
             select = (

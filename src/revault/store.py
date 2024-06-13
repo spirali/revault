@@ -83,20 +83,21 @@ class Store:
     def get_entry(self, ref: Ref):
         if not isinstance(ref, Ref):
             raise Exception(f"Expected Ref, got {ref.__class__.__name__}")
+        key = ref.key
 
         with self.lock:
-            if ref.key in self.waiting_for_results:
-                waiting = self.waiting_for_results[ref.key]
+            if key in self.waiting_for_results:
+                waiting = self.waiting_for_results[key]
                 result, entry_id = waiting.wait(self.lock)
-                return Entry(entry_id, ref, result)
-            status, entry_id, result = self.db.get_or_announce_entry(ref.key)
+                return Entry(entry_id, key, result)
+            status, entry_id, result = self.db.get_or_announce_entry(key)
             if status == AnnounceResult.FINISHED:
-                return Entry(entry_id, ref, result)
+                return Entry(entry_id, key, result)
             elif status == AnnounceResult.COMPUTING_ELSEWHERE:
                 raise Exception(f"Computation {ref} is computed in another process")
             assert status == AnnounceResult.COMPUTE_HERE
             waiting = WaitingForResult()
-            self.waiting_for_results[ref.key] = waiting
+            self.waiting_for_results[key] = waiting
         try:
             running_task = RunningTask()
             token = _CURRENT_RUNNING_TASK.set(running_task)
@@ -105,14 +106,14 @@ class Store:
         except BaseException as e:
             self.db.cancel_entry(entry_id)
             with self.lock:
-                del self.waiting_for_results[ref.key]
+                del self.waiting_for_results[key]
                 waiting.set_exception(e)
             raise e
-        self.db.finish_entry(entry_id, result, {}, ref.key.config)
+        self.db.finish_entry(entry_id, result, {}, key.config)
         with self.lock:
-            del self.waiting_for_results[ref.key]
+            del self.waiting_for_results[key]
             waiting.set_result(result, entry_id)
-        return Entry(entry_id, ref, result)
+        return Entry(entry_id, key, result)
 
     def remove(self, key: ToKey):
         key = to_key(key)

@@ -22,7 +22,7 @@ class Ref:
 ToKey = Key | Ref
 
 
-def to_key(obj: ToKey) -> Ref:
+def to_key(obj: ToKey) -> Key:
     if isinstance(obj, Ref):
         return obj.key
     if isinstance(obj, Key):
@@ -31,12 +31,14 @@ def to_key(obj: ToKey) -> Ref:
 
 
 class Computation:
-    def __init__(self, fn: Callable, name: str, version: int):
+    def __init__(self, fn: Callable, name: str, version: int, json_inputs: bool, json_result: bool):
         assert isinstance(fn, Callable)
         self.fn = fn
         self.version = version
         self.fn_signature = inspect.signature(fn)
         self.fn_argspec = inspect.getfullargspec(fn)
+        self.json_inputs = json_inputs
+        self.json_result = json_result
         self.name = name or fn.__name__
 
         self.__signature__ = self.fn_signature
@@ -105,9 +107,9 @@ class Computation:
         return get_current_store().get(self.ref(*args, **kwargs))
 
 
-def computation(fn=None, *, name: str = None, version: int = 0):
+def computation(fn=None, *, name: str = None, version: int = 0, json_inputs: bool = False, json_result: bool = False):
     def _helper(fn):
-        return Computation(fn, name, version)
+        return Computation(fn, name, version, json_inputs, json_result)
 
     if fn is not None:
         return _helper(fn)
