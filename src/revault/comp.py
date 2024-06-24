@@ -48,6 +48,10 @@ class Computation:
     def __repr__(self):
         return f"<Computation '{self.name}' v={self.version}>"
 
+    def dry_run(self, *args, **kwargs):
+        ref = self.ref(*args, **kwargs)
+        return ref.computation.fn(**ref.args)
+
     def ref_from_key(self, key: Key, ephemeral_args: dict | None = None):
         assert key.name == self.name
         assert key.version == self.version
