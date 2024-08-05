@@ -129,7 +129,7 @@ class Store:
         else:
             return None
 
-    def load_entry(self, key: ToKey):
+    def load_entry(self, key: ToKey) -> Entry | None:
         entry = self.load_entry_or_none(key)
         if entry is None:
             raise Exception(f"Key {to_key(key)} not found.")

@@ -19,7 +19,6 @@ JsonVariant = sa.JSON().with_variant(JSONB(), "postgresql")
 
 
 class Database:
-
     def __init__(self, url):
         engine = sa.create_engine(url)
         # if "sqlite" in engine.dialect.name:
@@ -107,9 +106,7 @@ class Database:
                     replica,
                     config_key=config_key,
                 )
-                for name, version, config, config_key, replica in conn.execute(
-                    select
-                )
+                for name, version, config, config_key, replica in conn.execute(select)
             ]
 
     def load_all_keys(self) -> list[Key]:
@@ -200,9 +197,7 @@ class Database:
             conn.execute(stmt)
             conn.commit()
 
-    def insert_new_replica(
-        self, key: Key, result: Any
-    ) -> int:
+    def insert_new_replica(self, key: Key, result: Any) -> int:
         c = self.entries.c
         with self.engine.connect() as conn:
             select = (

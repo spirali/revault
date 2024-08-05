@@ -1,6 +1,8 @@
 from typing import Any, Callable, Iterable
 import inspect
 
+from .entry import Entry
+
 from .key import Key
 
 
@@ -19,7 +21,7 @@ class Ref:
         return f"<Ref {key.name}({a}) v={key.version} r={key.replica}>"
 
 
-ToKey = Key | Ref
+ToKey = Key | Ref | Entry
 
 
 def to_key(obj: ToKey) -> Key:
@@ -27,11 +29,20 @@ def to_key(obj: ToKey) -> Key:
         return obj.key
     if isinstance(obj, Key):
         return obj
-    raise Exception(f"Expected Ref or CompRef, got: {obj.__type__}")
+    if isinstance(obj, Entry):
+        return obj.key
+    raise Exception(f"Expected Ref, CompRef, or Entry, got: {obj.__type__}")
 
 
 class Computation:
-    def __init__(self, fn: Callable, name: str, version: int, json_inputs: bool, json_result: bool):
+    def __init__(
+        self,
+        fn: Callable,
+        name: str,
+        version: int,
+        json_inputs: bool,
+        json_result: bool,
+    ):
         assert isinstance(fn, Callable)
         self.fn = fn
         self.version = version
@@ -111,7 +122,14 @@ class Computation:
         return get_current_store().get(self.ref(*args, **kwargs))
 
 
-def computation(fn=None, *, name: str = None, version: int = 0, json_inputs: bool = False, json_result: bool = False):
+def computation(
+    fn=None,
+    *,
+    name: str = None,
+    version: int = 0,
+    json_inputs: bool = False,
+    json_result: bool = False,
+):
     def _helper(fn):
         return Computation(fn, name, version, json_inputs, json_result)
 
